@@ -1,0 +1,6 @@
+requests
+pyyaml
+certifi
+openpyxl
+pytest
+kagglehub

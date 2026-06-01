@@ -1,0 +1,11 @@
+database:
+  path: data/don_registry.db
+
+schema:
+  path: db/schema.sql
+
+scraper:
+  base_url: https://www.who.int
+  api_url: https://www.who.int/api/news/diseaseoutbreaknews
+  page_size: 28
+  language: english
