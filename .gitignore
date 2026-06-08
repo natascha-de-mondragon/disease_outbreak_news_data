@@ -5,3 +5,4 @@ data/don_registry.db
 __pycache__/
 *.pyc
 secrets.yaml
+.csv
