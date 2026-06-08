@@ -4,6 +4,9 @@ database:
 schema:
   path: db/schema.sql
 
+hdx:
+  xlsx_path: data/disease_outbreaks_HDX.xlsx
+
 scraper:
   base_url: https://www.who.int
   api_url: https://www.who.int/api/news/diseaseoutbreaknews
