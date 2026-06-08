@@ -40,12 +40,26 @@ ALIASES = [
     ("1C1C.0", "Cerebrospinal meningitis"),
     ("1C1C.0", "Meningococcal meningitis"),
     ("1C8E.Z", "Viral meningitis"),
+    # Meningococcaemia (American spelling not covered by ICD API)
+    ("1C1C.2", "Meningococcemia"),
+    ("1C1C.2", "Meningococcal disease"),
     # Chikungunya
     ("1D40",   "Chikungunya"),
     # SARS / MERS (novel coronavirus 2012-era MERS → 1D64; 2003 SARS → 1D65)
     ("1D65",   "SARS"),
     ("1D64",   "MERS"),
     ("1D64",   "Novel coronavirus"),
+    # 2002-2003 outbreak titles used "acute respiratory syndrome" before SARS was named
+    ("1D65",   "Acute respiratory syndrome"),
+    ("1D65",   "Pneumonia of unknown cause"),
+    # Viral haemorrhagic fever — unspecified (1D86 aliases from API all have literal
+    # brackets; add plain-text variants for common DON title phrasings)
+    ("1D86",   "haemorrhagic fever syndrome"),
+    ("1D86",   "acute haemorrhagic fever syndrome"),
+    ("1D86",   "viral haemorrhagic fever syndrome"),
+    ("1D86",   "haemorrhagic fever of unknown aetiology"),
+    ("1D86",   "haemorrhagic fever of unknown origin"),
+    ("1D86",   "suspected haemorrhagic fever"),
     # West Nile
     ("1D46",   "West Nile"),
     ("1D46",   "West Nile virus"),
@@ -89,99 +103,97 @@ ALIASES = [
     ("1A03.3", "EHEC"),
 ]
 
-# Title patterns that indicate a DON is advisory / informational rather than
-# an active outbreak report. Evaluated as SQL LIKE expressions against don.title.
-NON_OUTBREAK_PATTERNS = [
-    # Travel / pilgrimage advisories
-    "title LIKE '%traveller%'",
-    "title LIKE '%Pilgrimage to Mecca%'",
-    "title LIKE '%International Travel and Health%'",
-    # Non-disease events
-    "title LIKE '%Hurricane%'",
-    "title LIKE '%repatriation%'",
-    "title LIKE '%Silicone implant%'",
-    # Policy / guidance documents
-    "title LIKE '%Antimicrobial drugs in Food Animal%'",
-    "title LIKE '%Surveillance Standard%'",
-    "title LIKE '%Influenza vaccine for%'",
-    "title LIKE '%virus sharing%'",
-    "title LIKE '%Medical Impact of Use%'",
-    # WHO statements / meetings
-    "title LIKE '%Statement by WHO%'",
-    "title LIKE '%WHO scientific meeting%'",
-    "title LIKE '%Director-General%'",
-    "title LIKE '%WHO Director%'",
-    # Rhetorical / retrospective titles
-    "title LIKE '%What happens if%'",
-    "title LIKE '%Can % be eradicated%'",
-    "title LIKE '%effect of patents%'",
-    "title LIKE '%Chronology%'",
-    "title LIKE '%one hundred days%'",
-    # Advisory subtitles (disease context but advisory framing)
-    "title LIKE '%Necessary precaution%'",
-    "title LIKE '% - Prevention of further cases%'",
-    "title LIKE '%need for virus sharing%'",
-    # Food / chemical safety advisories
-    "title LIKE '%International food safety event%'",
-    "title LIKE '%Melamine-contaminated%'",
-    # Antimicrobial resistance situation reports (not outbreaks)
-    "title LIKE '%Antimicrobial Resistance%Global situation%'",
-    "title LIKE '%Vancomycin resistant%'",
+# Synthetic ICD entries for diseases that appear in DON titles but are not
+# covered by the loaded ICD-11 chapters (chapters 0–1 only).
+# Each entry: (synthetic_code, name_en, [alias_strings])
+SYNTHETIC_ICD = [
+    (
+        "X.COVID19",
+        "COVID-19",
+        [
+            "COVID",
+            "coronavirus disease 2019",
+            "SARS-CoV-2",
+        ],
+    ),
+    (
+        "X.GBS",
+        "Guillain-Barré syndrome",
+        [
+            "Guillain-Barre syndrome",
+            "Guillain-Barré",
+            "Guillain-Barre",
+            "GBS",
+        ],
+    ),
+    (
+        "X.PRION",
+        "Prion disease",
+        [
+            "Creutzfeldt-Jakob disease",
+            "CJD",
+            "variant CJD",
+            "vCJD",
+            "new variant CJD",
+            "bovine spongiform encephalopathy",
+            "BSE",
+        ],
+    ),
+    (
+        "X.HUS",
+        "Haemolytic uraemic syndrome",
+        [
+            "haemolytic uraemic syndrome",
+            "hemolytic uremic syndrome",
+            "HUS",
+        ],
+    ),
+    (
+        "X.MICRO",
+        "Microcephaly",
+        [
+            "microcephaly",
+            "congenital microcephaly",
+        ],
+    ),
 ]
 
 
-def load_icd_alias_extensions(db_path: str) -> dict:
+def load_icd_alias_extensions(db_path: str) -> int:
     with sqlite3.connect(db_path) as conn:
         conn.execute("PRAGMA foreign_keys = ON")
 
-        # ── aliases ───────────────────────────────────────────────────────────
+        # Insert synthetic ICD codes (not in the standard ICD-11 chapter load)
+        conn.executemany(
+            "INSERT OR IGNORE INTO icd (code, name_en) VALUES (?, ?)",
+            [(code, name) for code, name, _ in SYNTHETIC_ICD],
+        )
+
         existing = {
             f"{row[0]}|{row[1].lower()}"
             for row in conn.execute("SELECT icd_code, alias FROM icd_aliases")
         }
+
         to_insert = [
             (code, alias)
             for code, alias in ALIASES
             if f"{code}|{alias.lower()}" not in existing
         ]
+        for code, _, aliases in SYNTHETIC_ICD:
+            for alias in aliases:
+                if f"{code}|{alias.lower()}" not in existing:
+                    to_insert.append((code, alias))
+
         conn.executemany(
             "INSERT INTO icd_aliases (icd_code, alias) VALUES (?, ?)", to_insert
         )
 
-        # ── is_outbreak column ────────────────────────────────────────────────
-        existing_cols = {
-            row[1]
-            for row in conn.execute("PRAGMA table_info(don)")
-        }
-        if "is_outbreak" not in existing_cols:
-            conn.execute(
-                "ALTER TABLE don ADD COLUMN is_outbreak INTEGER DEFAULT 1"
-            )
-
-        conn.execute("UPDATE don SET is_outbreak = 1")
-        where = " OR ".join(f"({p})" for p in NON_OUTBREAK_PATTERNS)
-        conn.execute(f"UPDATE don SET is_outbreak = 0 WHERE {where}")
-
-        n_aliases  = len(to_insert)
-        n_advisory = conn.execute(
-            "SELECT COUNT(*) FROM don WHERE is_outbreak = 0"
-        ).fetchone()[0]
-        n_total = conn.execute("SELECT COUNT(*) FROM don").fetchone()[0]
-
-    return {
-        "aliases_inserted": n_aliases,
-        "don_flagged_advisory": n_advisory,
-        "don_total": n_total,
-    }
+    return len(to_insert)
 
 
 if __name__ == "__main__":
     with open("config/config.yaml") as f:
         config = yaml.safe_load(f)
 
-    result = load_icd_alias_extensions(db_path=config["database"]["path"])
-    print(f"Inserted {result['aliases_inserted']} new ICD aliases")
-    print(
-        f"Flagged {result['don_flagged_advisory']} / {result['don_total']} "
-        "DONs as non-outbreak (is_outbreak = 0)"
-    )
+    n = load_icd_alias_extensions(db_path=config["database"]["path"])
+    print(f"Inserted {n} new ICD aliases")
