@@ -81,6 +81,8 @@ COUNTRY_ALIASES = [
     ("PHL", ["Philipines"]),          # typo as it appears in DON titles
     ("CIV", ["Côte d'Ivoir"]),        # truncated misspelling in DON titles
     ("CAN", ["Toronto"]),
+    ("VCT", ["St. Vincent and the Grenadines"]),
+    ("KNA", ["St. Kitts and Nevis"]),
 ]
 
 
