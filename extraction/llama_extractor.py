@@ -8,6 +8,10 @@ base, so this extractor and the Claude one cannot diverge. Writes to
 
   ollama pull llama3.1:8b
   python -m extraction.llama_extractor --limit 5 --model llama3.1:8b
+
+  # Batched + resumable, for long runs you may want to pause:
+  python -m extraction.llama_extractor --limit 500 --batch-size 10 # without resume it will overwrite 
+  python -m extraction.llama_extractor --limit 500 --batch-size 10 --resume   # continue later/append 
 """
 
 import logging
@@ -48,6 +52,8 @@ def populate(
     seed: int = 42,
     model: str = "llama3.1:8b",
     host: str = "http://localhost:11434",
+    batch_size=None,
+    resume: bool = False,
 ) -> dict:
     return base.run(
         db_path,
@@ -55,6 +61,8 @@ def populate(
         lambda text: extract_entities(text, model=model, host=host),
         limit=limit,
         seed=seed,
+        batch_size=batch_size,
+        resume=resume,
     )
 
 
@@ -69,6 +77,14 @@ if __name__ == "__main__":
     parser.add_argument("--seed", type=int, default=42, help="Sampling seed (default: 42)")
     parser.add_argument("--model", default="llama3.1:8b", help="Ollama model")
     parser.add_argument("--host", default="http://localhost:11434", help="Ollama host URL")
+    parser.add_argument(
+        "--batch-size", type=int, default=None,
+        help="Commit rows every N DONs instead of once at the end (allows safe pausing)",
+    )
+    parser.add_argument(
+        "--resume", action="store_true",
+        help="Skip DONs already recorded for this table instead of clearing it (use with --batch-size)",
+    )
     args = parser.parse_args()
 
     result = populate(
@@ -78,5 +94,7 @@ if __name__ == "__main__":
         seed=args.seed,
         model=args.model,
         host=args.host,
+        batch_size=args.batch_size,
+        resume=args.resume,
     )
     base.print_stats(result)
