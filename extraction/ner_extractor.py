@@ -50,10 +50,11 @@ from extraction import base
 _BIO_MODEL = "d4data/biomedical-ner-all"
 
 # Entity groups from d4data/biomedical-ner-all that we treat as diseases.
-_DISEASE_GROUPS = {"Disease"}
+# The model uses "Disease_disorder" not "Disease" — verified against live output.
+_DISEASE_GROUPS = {"Disease_disorder"}
 
 # Labels to suppress from the "other biomedical" section (not useful for DONs).
-_SKIP_GROUPS = {"Gene_or_gene_product", "DNA", "RNA", "Cell_line", "Cell_type"}
+_SKIP_GROUPS = {"Biological_structure", "Lab_value", "Nonbiological_location", "Outcome"}
 
 
 # -- model loading -----------------------------------------------------------
