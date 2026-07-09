@@ -42,16 +42,37 @@ CREATE TABLE IF NOT EXISTS icd_aliases (
 );
 
 -- Outbreaks table for review
+-- id_outbreak is NOT unique: the same (year, iso3, icd) tuple legitimately
+-- appears in multiple DONs (original report + updates). Use DISTINCT on
+-- id_outbreak when building the prediction set for HDX comparison.
 CREATE TABLE IF NOT EXISTS outbreaks (
-    recorded    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    id_outbreak TEXT PRIMARY KEY,
-    year        INTEGER NOT NULL,
-    iso_code    TEXT,
-    icd_code    TEXT,
-    don         TEXT,
+    recorded         TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    id_outbreak      TEXT,     -- HDX key year+iso3+icd4, NULL if unresolved, non-unique
+    year             INTEGER,
+    iso_code         TEXT,     -- iso3, NULL if country mention unresolved
+    icd_code         TEXT,     -- dotless ICD, NULL if disease mention unresolved
+    disease_mention  TEXT,     -- raw string the model returned
+    country_mention  TEXT,     -- raw string the model returned
+    don              TEXT,     -- source DON identifier (provenance)
     FOREIGN KEY (don) REFERENCES don(identifier),
     FOREIGN KEY (iso_code) REFERENCES iso(code),
     FOREIGN KEY (icd_code) REFERENCES icd(code)
 );
 
 CREATE INDEX IF NOT EXISTS idx_icd_aliases ON icd_aliases(alias);
+
+-- HDX disease outbreaks reference dataset (gold standard for evaluation)
+CREATE TABLE IF NOT EXISTS hdx (
+    id_outbreak TEXT PRIMARY KEY,  -- composite key from HDX: year+iso3+icd104c
+    year        INTEGER NOT NULL,
+    icd10c      TEXT,              -- ICD-10 chapter range (e.g. A00-A09)
+    icd103c     TEXT,              -- ICD-10 3-character code (e.g. A00)
+    icd104c     TEXT,              -- ICD-10 4-character code (e.g. A000)
+    disease     TEXT,              -- disease name (ICD-10 label)
+    country     TEXT,              -- country name
+    iso3        TEXT,              -- ISO 3166-1 alpha-3 code
+    who_region  TEXT,
+    dons        TEXT               -- raw DONs field (comma-separated DON references)
+);
+CREATE INDEX IF NOT EXISTS idx_hdx_iso3 ON hdx(iso3);
+CREATE INDEX IF NOT EXISTS idx_hdx_year ON hdx(year);
