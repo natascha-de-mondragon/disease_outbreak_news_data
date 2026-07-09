@@ -6,6 +6,9 @@ Ollama call; everything the evaluation reads is produced by shared code in
 base, so this extractor and the Claude one cannot diverge. Writes to
 `outbreaks_llama` by default.
 
+ollama serve
+
+then in a new terminal:
   ollama pull llama3.1:8b
   python -m extraction.llama_extractor --limit 5 --model llama3.1:8b
 
