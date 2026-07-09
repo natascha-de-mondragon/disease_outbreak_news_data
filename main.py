@@ -68,6 +68,20 @@ def _step_populate(config):
     print(f"populate: {r['dons_processed']} DONs → {r['outbreak_rows']} outbreak rows")
 
 
+def _step_compare_hdx(config):
+    from evaluation.compare_hdx import compare
+    compare(db_path=config["database"]["path"])
+
+
+def _step_populate_llm(config):
+    from extraction.llm_extractor import populate_outbreaks_llm
+    r = populate_outbreaks_llm(config["database"]["path"])
+    print(
+        f"populate-llm: {r['dons_processed']} DONs → {r['outbreak_rows']} outbreak rows\n"
+        f"  Errors: {r['errors']}  No ISO: {r['no_iso_match']}  No ICD: {r['no_icd_match']}"
+    )
+
+
 # Ordered pipeline steps: (flag-name, function, help-text)
 _STEPS = [
     ("init",         _step_init,         "Apply DB schema (safe to re-run)"),
@@ -78,7 +92,9 @@ _STEPS = [
     ("load-hdx",     _step_load_hdx,     "Load HDX disease outbreaks reference dataset"),
     ("scrape",       _step_scrape,       "Scrape DON index and content from WHO"),
     ("tag",          _step_tag,          "Tag outbreak vs advisory DONs"),
-    ("populate",     _step_populate,     "Populate outbreaks table from tagged DONs"),
+    ("populate",     _step_populate,     "Populate outbreaks table from tagged DONs (regex)"),
+    ("populate-llm", _step_populate_llm, "Populate outbreaks table from tagged DONs (LLM)"),
+    ("compare-hdx",  _step_compare_hdx,  "Compare outbreaks table against HDX gold standard"),
 ]
 
 
