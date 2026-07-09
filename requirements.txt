@@ -4,3 +4,6 @@ certifi
 openpyxl
 pytest
 kagglehub
+anthropic
+ollama
+tqdm
